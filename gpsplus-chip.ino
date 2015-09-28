@@ -437,7 +437,7 @@ void loop(){
           display.print(lngmin,3);
 
           display.setCursor(0,32);
-          display.print("Altitude");
+          display.print("Altitude: ");
           display.println(gps.altitude.meters());
 
           display.setCursor(0,40);
