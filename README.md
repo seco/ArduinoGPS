@@ -24,6 +24,9 @@ Goals to reach:
 - Import destinations from GPX files (SD card)
 - Store settings on SD card
 - Determine timezone based on location (now fixed +hours in code (buggy))
+- Possible upgrade the screen to a bigger one, with better resolution
+- Design 3d printable case
+- ...
 
 Pins in use:
 - A0 - Joystick X-axis
