@@ -1,4 +1,5 @@
-# ArduinoGPS - released under GPLv3
+# ArduinoGPS 
+released under GPLv3
 
 Ingredients:
 - Arduino MEGA 2560 (Should run on a uno with some modifications, to be tested)
