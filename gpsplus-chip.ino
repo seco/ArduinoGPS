@@ -23,6 +23,7 @@ This program is free software: you can redistribute it and/or modify
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <SD.h>
+//#include <GPX.h>
 
 #define DEBUG 1 // Set serial debuggin on/off
 
@@ -48,6 +49,10 @@ Sd2Card card;     // Setup the sd card
 SdVolume volume;
 SdFile root;
 const int SDchipSelect = 8;
+
+//GPX myGPX;
+File configFile;
+int lastGPX=0;
 
 #define LOGO_width 128   // Boot-logo :)
 #define LOGO_height 64
@@ -126,6 +131,72 @@ byte month, day, hour, minute, second, hundredths;
 
 String slat, slng;
 
+void READ_SETTINGS(){             // Read settings from SD card
+  char character;
+  String configName;
+  String configVal;
+  configFile = SD.open("config.txt");
+  if (configFile) {
+    while (configFile.available()) {
+      character = configFile.read();
+      while((configFile.available()) && (character != '[')){
+        character = configFile.read();
+      }
+      character = configFile.read();
+      while((configFile.available()) && (character != '=')){
+        configName = configName + character;
+        character = configFile.read();
+      }
+      character = configFile.read();
+      while((configFile.available()) && (character != ']')){
+        configVal = configVal + character;
+        character = configFile.read();
+      }
+      if(character == ']'){
+        if(DEBUG){
+          Serial.print("Name:");
+          Serial.println(configName);
+          Serial.print("Value :");
+          Serial.println(configVal);
+        }
+        applySetting(configName,configVal);
+        configName="";
+        configVal="";
+      }
+    }
+    configFile.close();
+  }else{
+    if(DEBUG){
+      Serial.println("error opening config.txt");
+    }
+  }
+}
+
+void WRITE_SETTINGS() {
+  SD.remove("config.txt"); // Delete the old One
+  File configFile = SD.open("config.txt", FILE_WRITE); // Create new one
+  if(configFile){
+    configFile.print("[");
+    configFile.print("lastGPX=");
+    configFile.print(lastGPX);
+    configFile.println("]");
+    configFile.close(); // close the file:
+    if(DEBUG){
+      Serial.println("Writing done.");
+    }
+  }else{
+    if(DEBUG){
+      Serial.println("Writing failed.");
+    }
+  }
+}
+
+void applySetting(String configName, String configVal) {
+  if(configName == "lastGPX") {
+    lastGPX=configVal.toInt();
+  }
+}
+ 
 void COMPAS(){                    // Show heading
   int x,y,z;
   Wire.beginTransmission(compas_id);
@@ -282,7 +353,19 @@ void setup(){                     // Setup al subsystems
   if(DEBUG == 1){
     Serial.begin(9600);           //Set the serial baud rate.
   }
-  
+  if (!SD.begin(SDchipSelect)) {
+    if(DEBUG){
+      Serial.println("Card failed, or not present");
+    }
+    return;
+  }else{
+    if(DEBUG){
+      Serial.println("card initialized.");
+    }
+  }
+  READ_SETTINGS();                // First read the settings.
+  WRITE_SETTINGS();               // Write them again, if the file wasn't there, or completely filled, it will be by now.
+
   Serial1.begin(9600);            //Set the GPS baud rate.
 
   pinMode(xPin, INPUT);           // Setup pins for joystick
@@ -301,61 +384,6 @@ void setup(){                     // Setup al subsystems
   display.display();
   delay(3000);
   display.clearDisplay();
-
-  if(DEBUG){
-    Serial.print("\nInitializing SD card...");
-    if (!card.init(SPI_HALF_SPEED, SDchipSelect)) {
-    Serial.println("initialization failed. Things to check:");
-    Serial.println("* is a card inserted?");
-    Serial.println("* is your wiring correct?");
-    Serial.println("* did you change the chipSelect pin to match your shield or module?");
-    return;
-  } else {
-    Serial.println("Wiring is correct and a card is present.");
-  }
-  Serial.print("\nCard type: ");
-  switch (card.type()) {
-    case SD_CARD_TYPE_SD1:
-      Serial.println("SD1");
-      break;
-    case SD_CARD_TYPE_SD2:
-      Serial.println("SD2");
-      break;
-    case SD_CARD_TYPE_SDHC:
-      Serial.println("SDHC");
-      break;
-    default:
-      Serial.println("Unknown");
-  }
-  if (!volume.init(card)) {
-    Serial.println("Could not find FAT16/FAT32 partition.\nMake sure you've formatted the card");
-    return;
-  }
-  uint32_t volumesize;
-  Serial.print("\nVolume type is FAT");
-  Serial.println(volume.fatType(), DEC);
-  Serial.println();
-
-  volumesize = volume.blocksPerCluster();    // clusters are collections of blocks
-  volumesize *= volume.clusterCount();       // we'll have a lot of clusters
-  volumesize *= 512;                            // SD card blocks are always 512 bytes
-  Serial.print("Volume size (bytes): ");
-  Serial.println(volumesize);
-  Serial.print("Volume size (Kbytes): ");
-  volumesize /= 1024;
-  Serial.println(volumesize);
-  Serial.print("Volume size (Mbytes): ");
-  volumesize /= 1024;
-  Serial.println(volumesize);
-
-
-  Serial.println("\nFiles found on the card (name, date and size in bytes): ");
-  root.openRoot(volume);
-
-  // list all files in the card with date and size
-  root.ls(LS_R | LS_DATE | LS_SIZE);
-  delay(1000);
-  }
 }
  
 void loop(){
@@ -370,24 +398,19 @@ void loop(){
         display.setCursor(0,0);
         display.println("Waiting");
         display.println("for fix");
+        waitCount++;
         switch (waitCount) {
-          case 0:
-            display.println(" ");
-            waitCount++;
-            break;
           case 1:
             display.println(".");
-            waitCount++;
             break;
           case 2:
             display.println("..");
-            waitCount++;
             break;
           case 3:
             display.println("...");
-            waitCount++;
-          default:
-            display.println("...");
+            break;
+          case 4:
+            display.println("....");
             waitCount=0;
             break;
         }
